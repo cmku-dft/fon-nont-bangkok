@@ -71,6 +71,12 @@
   @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .chip[aria-pressed="true"]{color:#08201C}}
   :root[data-theme="dark"] .chip[aria-pressed="true"]{color:#08201C}
   .chip:focus-visible,button:focus-visible{outline:2px solid var(--rain); outline-offset:2px}
+  .chip.locate{border-color:var(--rain); color:var(--rain)}
+  .chip.locate[aria-pressed="true"]{color:var(--paper)}
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .chip.locate[aria-pressed="true"]{color:#08201C}}
+  :root[data-theme="dark"] .chip.locate[aria-pressed="true"]{color:#08201C}
+  .chip.mini{padding:7px 10px; font-size:14px; line-height:1; color:var(--muted); margin-inline-start:-4px}
+  .chip[disabled]{opacity:.55; cursor:default}
 
   .card{background:var(--surface); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow);}
 
@@ -243,8 +249,33 @@ const LOCS = [
   { id:"bkk",        name:"กรุงเทพฯ ชั้นใน", near:"ปทุมวัน · สาทร · บางรัก · พญาไท",        lat:13.7440, lon:100.5340 },
   { id:"ladkrabang", name:"ลาดกระบัง",       near:"สุวรรณภูมิ · มีนบุรี · ร่มเกล้า",         lat:13.7220, lon:100.7860 },
   { id:"bangna",     name:"บางนา",           near:"พระโขนง · สมุทรปราการ · แบริ่ง",         lat:13.6680, lon:100.6040 },
-  { id:"baan",       name:"บ้าน",    near:"ปากเกร็ด · บางกรวย · ท่าน้ำนนท์",        lat:13.86718, lon:100.53985 },
+  { id:"baan",       name:"บ้าน",            near:"ปากเกร็ด · บางกรวย · ท่าน้ำนนท์",        lat:13.86718, lon:100.53985 },
 ];
+
+/* ---------- ตำแหน่งปัจจุบันจากมือถือ ----------
+   พิกัดเก็บไว้ใน localStorage ของเครื่องผู้ใช้เท่านั้น ไม่ได้ส่งไปไหนนอกจาก Open-Meteo */
+const GEO_OK = typeof navigator !== "undefined" && "geolocation" in navigator && window.isSecureContext;
+let herePos = (() => {
+  try {
+    const p = JSON.parse(localStorage.getItem("fnb:here") || "null");
+    return (p && Number.isFinite(p.lat) && Number.isFinite(p.lon)) ? p : null;
+  } catch { return null; }
+})();
+
+const round3 = n => Math.round(n * 1000) / 1000;
+
+function hereLoc(){
+  if (!herePos) return null;
+  return { id:"here", name:"ตำแหน่งปัจจุบัน",
+           near:`${round3(herePos.lat)}, ${round3(herePos.lon)}`,
+           lat:herePos.lat, lon:herePos.lon };
+}
+/* รายการที่ใช้จริง = ตำแหน่งปัจจุบัน (ถ้ามี) นำหน้ารายการคงที่ */
+const allLocs = () => { const h = hereLoc(); return h ? [h, ...LOCS] : LOCS.slice(); };
+
+/* ลายนิ้วมือของรายการ ใช้ทิ้งแคชเก่าอัตโนมัติเมื่อ LOCS หรือตำแหน่งเปลี่ยน
+   ปัดเป็นทศนิยม 3 ตำแหน่ง (~100 ม.) เพื่อไม่ให้ GPS ขยับนิดเดียวแล้วแคชพังทุกครั้ง */
+const locKey = () => allLocs().map(l => `${l.id}@${round3(l.lat)},${round3(l.lon)}`).join("|");
 
 const WX_API = "https://api.open-meteo.com/v1/forecast";
 const AQ_API = "https://air-quality-api.open-meteo.com/v1/air-quality";
@@ -259,8 +290,9 @@ async function getJson(url){
 }
 
 async function fetchForecast(){
-  const lat = LOCS.map(l => l.lat).join(",");
-  const lon = LOCS.map(l => l.lon).join(",");
+  const list = allLocs();
+  const lat = list.map(l => l.lat).join(",");
+  const lon = list.map(l => l.lon).join(",");
 
   const wxUrl = WX_API + "?" + new URLSearchParams({
     latitude: lat, longitude: lon,
@@ -278,11 +310,13 @@ async function fetchForecast(){
   /* ค่าฝุ่นพังไม่ควรทำให้พยากรณ์ฝนพังตาม */
   const [wx, aq] = await Promise.all([ getJson(wxUrl), getJson(aqUrl).catch(() => null) ]);
   const wxList = asList(wx), aqList = aq ? asList(aq) : [];
+  if (wxList.length < list.length || !wxList[0]?.hourly)
+    throw new Error("ข้อมูลพยากรณ์ที่ได้กลับมาไม่ครบ");
 
   return {
     generatedAt: new Date().toISOString(),
     source: "Open-Meteo (ICON / GFS)",
-    locations: LOCS.map((loc, i) => {
+    locations: list.map((loc, i) => {
       const w = wxList[i], a = aqList[i]?.current ?? null;
       return {
         id: loc.id, name: loc.name, near: loc.near,
@@ -308,11 +342,12 @@ const CACHE_MS = 10 * 60 * 1000;
 function cacheRead(){
   try {
     const box = JSON.parse(localStorage.getItem("fnb:wx") || "null");
-    return (box && Date.now() - box.at < CACHE_MS) ? box.data : null;
+    if (!box || box.key !== locKey()) return null;  // รายการพื้นที่เปลี่ยน = แคชใช้ไม่ได้
+    return (Date.now() - box.at < CACHE_MS) ? box.data : null;
   } catch { return null; }
 }
 function cacheWrite(data){
-  try { localStorage.setItem("fnb:wx", JSON.stringify({ at: Date.now(), data })); } catch {}
+  try { localStorage.setItem("fnb:wx", JSON.stringify({ at: Date.now(), key: locKey(), data })); } catch {}
 }
 
 /* ---------- ดึงข้อมูล ---------- */
@@ -346,22 +381,96 @@ function showMsg(text){
 }
 function hideMsg(){ $("msg").hidden = true; }
 
+/* ---------- ขอตำแหน่งจากเครื่อง ---------- */
+const PIN = "\u{1F4CD}";
+let locating = false;
+
+function geoMessage(err){
+  if (err && err.code === 1) return "ไม่ได้รับอนุญาตให้ใช้ตำแหน่ง — เปิดสิทธิ์ให้เว็บนี้ในการตั้งค่าเบราว์เซอร์แล้วลองใหม่";
+  if (err && err.code === 3) return "หาตำแหน่งนานเกินไป ลองใหม่อีกครั้ง หรือออกไปที่โล่งกว่านี้";
+  return "หาตำแหน่งไม่ได้ในตอนนี้ ลองใหม่อีกครั้ง";
+}
+
+function locate(){
+  if (!GEO_OK || locating) return;
+  locating = true;
+  hideMsg();
+  $("stamp").textContent = "กำลังหาตำแหน่ง…";
+  renderPlaces();
+
+  /* ถ้าผู้ใช้ปัดกล่องขออนุญาตทิ้งโดยไม่ตอบ เบราว์เซอร์จะไม่เรียก callback ใดเลย
+     และ timeout ของ getCurrentPosition ก็ไม่นับช่วงรอสิทธิ์ ต้องกันค้างเอง */
+  let settled = false;
+  const done = fn => (...args) => {
+    if (settled) return;
+    settled = true; clearTimeout(watchdog); locating = false;
+    fn(...args);
+  };
+  const watchdog = setTimeout(() => {
+    if (settled) return;
+    settled = true; locating = false;
+    $("stamp").textContent = "";
+    showMsg("ยังไม่ได้คำตอบเรื่องสิทธิ์ตำแหน่ง — ถ้ามีกล่องขออนุญาตขึ้นมา ให้กดอนุญาตแล้วลองใหม่");
+    renderPlaces();
+    if (DATA) render();
+  }, 15000);
+
+  navigator.geolocation.getCurrentPosition(
+    done(pos => {
+      herePos = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+      try { localStorage.setItem("fnb:here", JSON.stringify(herePos)); } catch {}
+      activeId = "here"; localStorage_set("place", "here");
+      load({ force: true });
+    }),
+    done(err => {
+      $("stamp").textContent = "";
+      showMsg(geoMessage(err));
+      renderPlaces();
+      if (DATA) render();
+    }),
+    /* กริดกว้าง 11 กม. ความแม่นระดับเมตรไม่ช่วยอะไร แต่กิน GPS กับแบตเตอรี่ */
+    { enableHighAccuracy: false, timeout: 12000, maximumAge: 5 * 60 * 1000 }
+  );
+}
+
 /* ---------- ปุ่มเลือกพื้นที่ ---------- */
 function renderPlaces(){
   const el = $("places");
-  if (el.childElementCount === DATA.locations.length) return;
   el.textContent = "";
-  DATA.locations.forEach(L => {
+
+  if (GEO_OK && !herePos) {
     const b = document.createElement("button");
-    b.className = "chip"; b.type = "button"; b.textContent = L.name;
+    b.className = "chip locate"; b.type = "button";
+    b.textContent = locating ? PIN + " กำลังหา…" : PIN + " ใช้ตำแหน่งปัจจุบัน";
+    b.disabled = locating;
+    b.addEventListener("click", locate);
+    el.appendChild(b);
+  }
+
+  (DATA?.locations ?? []).forEach(L => {
+    const b = document.createElement("button");
+    b.className = "chip" + (L.id === "here" ? " locate" : "");
+    b.type = "button";
+    b.textContent = (L.id === "here" ? PIN + " " : "") + L.name;
     b.setAttribute("aria-pressed", String(L.id === activeId));
     b.addEventListener("click", () => {
       activeId = L.id; localStorage_set("place", L.id);
-      [...el.children].forEach(c => c.setAttribute("aria-pressed","false"));
+      [...el.querySelectorAll(".chip")].forEach(c => c.setAttribute("aria-pressed","false"));
       b.setAttribute("aria-pressed","true");
       render();
     });
     el.appendChild(b);
+
+    if (L.id === "here") {
+      const r = document.createElement("button");
+      r.className = "chip mini"; r.type = "button";
+      r.textContent = locating ? "…" : "↻";
+      r.disabled = locating;
+      r.title = "อัปเดตตำแหน่ง";
+      r.setAttribute("aria-label", "อัปเดตตำแหน่ง");
+      r.addEventListener("click", locate);
+      el.appendChild(r);
+    }
   });
 }
 
@@ -476,10 +585,14 @@ function render(){
 
   $("foot").innerHTML =
     `ข้อมูลจาก <b>${DATA.source}</b> · ตำแหน่งกริดที่ใช้จริง ${L.grid.lat.toFixed(3)}, ${L.grid.lon.toFixed(3)} ` +
-    `(ความละเอียดราว 11 กม. ต่อช่อง) · หน้านี้ดึงข้อมูลใหม่ทุก 10 นาที`;
+    `(ความละเอียดราว 11 กม. ต่อช่อง) · หน้านี้ดึงข้อมูลใหม่ทุก 10 นาที` +
+    (L.id === "here"
+      ? ` · <b>พิกัดของคุณเก็บอยู่ในเบราว์เซอร์เครื่องนี้เท่านั้น</b> ใช้เพื่อถามพยากรณ์จาก Open-Meteo และไม่ได้ส่งไปที่อื่น`
+      : ``);
 }
 
 /* ---------- เริ่มทำงาน ---------- */
+renderPlaces();   // ให้ปุ่มตำแหน่งขึ้นทันที ไม่ต้องรอข้อมูลมาก่อน
 load();
 timer = setInterval(() => load({ silent: true, force: true }), CACHE_MS);
 document.addEventListener("visibilitychange", () => {
