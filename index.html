@@ -530,8 +530,9 @@ async function fetchForecast(){
         id: loc.id, th: loc.th, en: loc.en,
         grid: { lat: w.latitude, lon: w.longitude },
         cur: { t:w.current.temperature_2m, rh:w.current.relative_humidity_2m,
-               app:w.current.apparent_temperature, wc:w.current.weather_code,
-               wind:w.current.wind_speed_10m },
+               app:w.current.apparent_temperature, p:w.current.precipitation,
+               wc:w.current.weather_code, wind:w.current.wind_speed_10m },
+        pt: { lat: loc.lat, lon: loc.lon },
         air: a ? { pm25:a.pm2_5, pm10:a.pm10, aqi:a.us_aqi } : null,
         hourly: { time:w.hourly.time, t:w.hourly.temperature_2m,
                   pop:w.hourly.precipitation_probability, mm:w.hourly.precipitation,
@@ -677,8 +678,20 @@ function renderPlaces(){
   });
 }
 
-/* ---------- ประโยคสรุป ---------- */
-function verdictText(L, i){
+/* =====================================================================
+   ประโยคสรุป
+   แยกให้ชัดระหว่างสองคำถามที่ต่างกันสิ้นเชิง
+     1. "ฝนตกอยู่ตอนนี้ไหม"  → ต้องใช้การตรวจวัด คือเรดาร์ (สำรองด้วยรหัสสภาพอากาศ)
+     2. "ฝนจะตกไหม"          → ใช้พยากรณ์ โดยดูปริมาณ มม. เป็นหลัก ไม่ใช่ % โอกาส
+   เดิมผมใช้ % โอกาสตัดสินข้อ 1 ซึ่งหน้าฝนค่านี้สูงเกือบตลอด เลยขึ้นว่าฝนตกตลอดเวลา
+   ===================================================================== */
+const WET_MM  = 0.5;    // มม./ชม. ที่ถือว่าเป็นฝนจริง
+const DAMP_MM = 0.15;   // ต่ำกว่านี้ถือว่าแห้ง
+
+/* รหัส WMO ที่หมายถึงมีน้ำฟ้าตกอยู่ */
+const isWetCode = c => (c >= 51 && c <= 67) || (c >= 80 && c <= 82) || c >= 95;
+
+function verdictText(L, i, radarWet){
   const H = L.hourly, n = H.time.length, S = T();
   const win = [];
   for (let k = i; k < Math.min(i + 14, n); k++)
@@ -686,18 +699,29 @@ function verdictText(L, i){
   if (!win.length) return S.vNoData;
 
   const hm = d => pad(d.getHours()) + ":00";
+  const conf = p => p >= 70 ? S.confHigh : p >= 45 ? S.confMid : S.confLow;
 
-  if (win[0].pop >= 60 || win[0].mm >= 0.3) {
+  /* เรดาร์ชนะเสมอถ้าอ่านได้ ไม่งั้นค่อยเชื่อแบบจำลอง */
+  const modelWet = (L.cur.p ?? 0) > 0 || isWetCode(L.cur.wc);
+  const nowWet = (radarWet === null || radarWet === undefined) ? modelWet : radarWet;
+
+  if (nowWet) {
     let k = 0;
-    while (k < win.length && (win[k].pop >= 50 || win[k].mm >= 0.3)) k++;
-    const peak = win.slice(0, Math.max(k,1)).reduce((a,b) => b.mm > a.mm ? b : a);
+    while (k < win.length && (win[k].mm >= DAMP_MM || win[k].pop >= 70)) k++;
+    const peak = win.slice(0, Math.max(k, 1)).reduce((a, b) => b.mm > a.mm ? b : a);
     if (k >= win.length) return S.vRainAllDay(hm(peak.t));
     return S.vRainNow(hm(win[k].t), hm(peak.t));
   }
-  const next = win.find(w => w.pop >= 60);
-  if (!next) return S.vNoRain;
-  const gap = next.k - i;
-  return S.vDryNow(hm(next.t), gap <= 1 ? S.gapSoon : S.gapHours(gap));
+
+  /* ตอนนี้แห้ง — หาก้อนฝนจริงก้อนถัดไป โดยดูปริมาณ ไม่ใช่ % */
+  const next = win.find(w => w.mm >= WET_MM);
+  if (next) {
+    const gap = next.k - i;
+    return S.vDryNow(hm(next.t), gap <= 1 ? S.gapSoon : S.gapHours(gap), conf(next.pop));
+  }
+  /* ไม่มีก้อนชัด แต่แบบจำลองยังให้โอกาสสูง = ฝนประปรายแบบเดาเวลาไม่ได้ */
+  if (win.some(w => w.pop >= 60)) return S.vMaybe;
+  return S.vNoRain;
 }
 
 /* ---------- วาดหน้า ---------- */
@@ -835,7 +859,71 @@ const BASE_ATTR = 'Tiles &copy; <a href="https://www.esri.com/">Esri</a> · ' +
 const radar = {
   map: null, base: null, ref: null, marker: null,
   frames: [], layers: new Map(), idx: 0, playing: false, timer: null, ready: false,
+  host: "", wet: null, wetAt: null, wetKey: "",
 };
+
+/* ดึงดัชนีเฟรมครั้งเดียว ใช้ร่วมกันระหว่างแผนที่กับตัวอ่านพิกเซล */
+let rvPromise = null;
+function rvIndex(){
+  if (!rvPromise) rvPromise = fetch(RV_INDEX, { cache: "no-store" }).then(r => r.json());
+  return rvPromise;
+}
+
+/* =====================================================================
+   อ่านพิกเซลเรดาร์ตรงพิกัดที่เลือก เพื่อตอบว่า "ฝนตกอยู่จริงไหม"
+   ที่ zoom 7 หนึ่งพิกเซลกว้างราว 1.2 กม. สุ่ม 5x5 พิกเซล (~6 กม.)
+   แล้วดูค่าความทึบสูงสุด — โปร่งใสหมด = ไม่มีฝน
+   ===================================================================== */
+const tileX = (lon, z) => (lon + 180) / 360 * Math.pow(2, z);
+const tileY = (lat, z) => {
+  const r = lat * Math.PI / 180;
+  return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * Math.pow(2, z);
+};
+
+async function radarWetAt(lat, lon){
+  const Z = 7, SIZE = 256, R = 2;   // R=2 -> กรอบ 5x5
+  const j = await rvIndex();
+  const frames = j.radar?.past ?? [];
+  if (!frames.length) return null;
+  const f = frames[frames.length - 1];
+
+  const fx = tileX(lon, Z), fy = tileY(lat, Z);
+  const url = `${j.host}${f.path}/${SIZE}/${Z}/${Math.floor(fx)}/${Math.floor(fy)}/4/1_0.png`;
+
+  const res = await fetch(url, { cache: "force-cache" });
+  if (!res.ok) return null;
+  const bmp = await createImageBitmap(await res.blob());
+
+  const cv = document.createElement("canvas");
+  cv.width = bmp.width; cv.height = bmp.height;
+  const cx = cv.getContext("2d", { willReadFrequently: true });
+  cx.drawImage(bmp, 0, 0);
+
+  const px = Math.min(bmp.width - 1,  Math.floor((fx % 1) * bmp.width));
+  const py = Math.min(bmp.height - 1, Math.floor((fy % 1) * bmp.height));
+  const x0 = Math.max(0, px - R), y0 = Math.max(0, py - R);
+  const w = Math.min(bmp.width - x0, R * 2 + 1), h = Math.min(bmp.height - y0, R * 2 + 1);
+  const d = cx.getImageData(x0, y0, w, h).data;
+
+  let maxA = 0;
+  for (let k = 3; k < d.length; k += 4) if (d[k] > maxA) maxA = d[k];
+  return { wet: maxA > 40, at: f.time * 1000 };
+}
+
+/* เรียกแบบไม่บล็อกการวาดหน้า ได้ผลแล้วค่อยวาดประโยคสรุปใหม่ */
+function refreshRadarWet(L){
+  const key = `${round3(L.pt.lat)},${round3(L.pt.lon)}`;
+  if (radar.wetKey === key && radar.wetAt && Date.now() - radar.wetAt < 6 * 60000) return;
+  radar.wetKey = key;
+  radarWetAt(L.pt.lat, L.pt.lon)
+    .then(r => {
+      if (radar.wetKey !== key) return;      // ผู้ใช้เปลี่ยนพื้นที่ไปแล้ว ทิ้งผลเก่า
+      radar.wet = r ? r.wet : null;
+      radar.wetAt = r ? r.at : null;
+      paintVerdict();
+    })
+    .catch(() => { radar.wet = null; radar.wetAt = null; paintVerdict(); });
+}
 
 const isDarkNow = () => matchMedia("(prefers-color-scheme: dark)").matches;
 
