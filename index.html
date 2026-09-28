@@ -94,6 +94,7 @@
   .hero{padding:18px 18px 16px; display:flex; flex-direction:column; gap:16px;}
   .verdict{font-family:var(--display); font-size:20px; font-weight:600; letter-spacing:-.005em;}
   .verdict em{font-style:normal; color:var(--rain);}
+  .verdict-src{font-size:11.5px; color:var(--muted); margin-top:6px;}
   .nowrow{display:flex; align-items:flex-end; gap:20px; flex-wrap:wrap;}
   .feels{display:flex; align-items:baseline; gap:6px;}
   .feels .big{font-family:var(--display); font-size:50px; font-weight:600; line-height:.9; color:var(--heat); letter-spacing:-.02em;}
@@ -215,7 +216,10 @@
   <div id="app" class="skel">
     <div style="display:flex;flex-direction:column;gap:18px">
       <section class="card hero">
-        <p class="verdict" id="verdict"></p>
+        <div>
+          <p class="verdict" id="verdict"></p>
+          <p class="verdict-src" id="verdictSrc"></p>
+        </div>
         <div class="nowrow">
           <div>
             <span class="feels-lab" data-i18n="feelsLike"></span>
@@ -288,6 +292,9 @@
 <script>
 "use strict";
 
+/* ใส่ไว้ให้ตรวจได้ว่าไฟล์ที่อยู่บนเว็บเป็นรุ่นไหน — เปิด Console แล้วพิมพ์ BUILD */
+const BUILD = "2026-09-28f";
+
 /* =====================================================================
    ข้อความสองภาษา · Bilingual strings
    เพิ่มภาษาใหม่ได้โดยเติมคีย์อีกชุดใน I18N แล้วเพิ่มปุ่มใน .langsw
@@ -320,10 +327,14 @@ const I18N = {
     noAir: "ไม่มีข้อมูลฝุ่นตอนนี้",
     vRainAllDay: h => `ฝนโปรยยาวทั้งวัน — หนักสุดราว <em>${h} น.</em>`,
     vRainNow: (end, peak) => `ฝนตกอยู่ตอนนี้ น่าจะซาราว <em>${end} น.</em> · หนักสุดช่วง ${peak}`,
-    vDryNow: (h, gap) => `ตอนนี้แห้ง · ฝนน่าจะกลับมา <em>${h} น.</em> (${gap})`,
+    vDryNow: (h, gap, conf) => `ตอนนี้ไม่ตก · ฝนก้อนถัดไปราว <em>${h} น.</em> (${gap} · ${conf})`,
     gapSoon: "อีกไม่ถึงชั่วโมง",
     gapHours: n => `อีกราว ${n} ชม.`,
+    confHigh: "ค่อนข้างแน่", confMid: "ยังไม่แน่", confLow: "โอกาสน้อย",
+    vMaybe: "ตอนนี้ไม่ตก · ไม่มีก้อนฝนชัดเจนใน 12 ชม.นี้ แต่ <em>มีโอกาสฝนประปราย</em>",
     vNoRain: "ช่วง 12 ชั่วโมงนี้ไม่มีสัญญาณฝนชัด — <em>ไม่ต้องพกร่มก็ได้</em>",
+    srcRadar: t => `สถานะ "ตกอยู่ไหม" อ่านจากเรดาร์เมื่อ ${t} น. · เวลาที่คาดมาจากแบบจำลอง`,
+    srcModel: `สถานะมาจากแบบจำลอง ไม่ใช่การตรวจวัด (อ่านเรดาร์ไม่ได้ในตอนนี้)`,
     vNoData: "ข้อมูลรายชั่วโมงหมดช่วงแล้ว — ดูสรุป 7 วันด้านล่างแทน",
     errStale: "ดึงข้อมูลใหม่ไม่สำเร็จ กำลังแสดงข้อมูลรอบก่อน",
     errFirst: m => `ตอนนี้ดึงพยากรณ์ไม่ได้ (${m})`,
@@ -379,10 +390,14 @@ const I18N = {
     noAir: "No air data right now",
     vRainAllDay: h => `Rain on and off all day — heaviest near <em>${h}</em>`,
     vRainNow: (end, peak) => `Raining now · easing around <em>${end}</em> · heaviest at ${peak}`,
-    vDryNow: (h, gap) => `Dry for now · rain returns around <em>${h}</em> (${gap})`,
+    vDryNow: (h, gap, conf) => `Not raining · next band of rain around <em>${h}</em> (${gap} · ${conf})`,
     gapSoon: "within the hour",
     gapHours: n => `in about ${n} h`,
+    confHigh: "fairly likely", confMid: "uncertain", confLow: "low chance",
+    vMaybe: "Not raining · no solid band of rain in the next 12 h, but <em>scattered showers are possible</em>",
     vNoRain: "No clear rain signal for the next 12 hours — <em>leave the umbrella</em>",
+    srcRadar: t => `“Raining now” read off the radar at ${t} · timings come from the model`,
+    srcModel: `Status comes from the model, not an observation (radar unreadable right now)`,
     vNoData: "Hourly data has run out — see the 7-day summary below",
     errStale: "Could not refresh — showing the previous reading",
     errFirst: m => `Can't reach the forecast right now (${m})`,
@@ -546,17 +561,27 @@ async function fetchForecast(){
   };
 }
 
-/* แคชคำตอบ 10 นาที กันยิงซ้ำตอนรีโหลดรัวๆ (ภาษาไม่อยู่ในแคช สลับได้ฟรี) */
+/* แคชคำตอบ 10 นาที กันยิงซ้ำตอนรีโหลดรัวๆ (ภาษาไม่อยู่ในแคช สลับได้ฟรี)
+
+   SCHEMA ต้องบวกเลขทุกครั้งที่เปลี่ยนรูปร่างของข้อมูลใน fetchForecast()
+   ไม่งั้นเบราว์เซอร์ที่เคยเข้ามาแล้วจะเอาข้อมูลรูปแบบเก่ามาป้อนโค้ดใหม่
+   แล้วพังแบบเงียบๆ อย่างที่เคยเจอมา */
+const SCHEMA = 3;
 const CACHE_MS = 10 * 60 * 1000;
+const cacheKey = () => `v${SCHEMA}|${locKey()}`;
+
 function cacheRead(){
   try {
     const box = JSON.parse(localStorage.getItem("fnb:wx") || "null");
-    if (!box || box.key !== locKey()) return null;
-    return (Date.now() - box.at < CACHE_MS) ? box.data : null;
+    if (!box || box.key !== cacheKey()) return null;
+    if (Date.now() - box.at >= CACHE_MS) return null;
+    /* กันไว้อีกชั้น ข้อมูลต้องมีครบทุกอย่างที่โค้ดปัจจุบันต้องใช้ */
+    const ok = box.data?.locations?.every(l => l.pt && l.cur && l.hourly?.time && l.daily?.time);
+    return ok ? box.data : null;
   } catch { return null; }
 }
 function cacheWrite(data){
-  try { localStorage.setItem("fnb:wx", JSON.stringify({ at: Date.now(), key: locKey(), data })); } catch {}
+  try { localStorage.setItem("fnb:wx", JSON.stringify({ at: Date.now(), key: cacheKey(), data })); } catch {}
 }
 
 async function load({ silent = false, force = false } = {}) {
@@ -706,9 +731,12 @@ function verdictText(L, i, radarWet){
   const nowWet = (radarWet === null || radarWet === undefined) ? modelWet : radarWet;
 
   if (nowWet) {
+    /* ช่วงฝนจบเมื่อไหร่ ตัดสินด้วยปริมาณล้วน ห้ามใช้ % มาต่ออายุ
+       ไม่งั้นหน้าฝนที่ % สูงทั้งวันจะกลายเป็น "ฝนตกทั้งวัน" ตลอด */
     let k = 0;
-    while (k < win.length && (win[k].mm >= DAMP_MM || win[k].pop >= 70)) k++;
-    const peak = win.slice(0, Math.max(k, 1)).reduce((a, b) => b.mm > a.mm ? b : a);
+    while (k < win.length && win[k].mm >= DAMP_MM) k++;
+    if (k === 0) k = 1;   // เรดาร์เห็นฝน แต่แบบจำลองว่าชั่วโมงนี้แห้งแล้ว = กำลังจะซา
+    const peak = win.slice(0, k).reduce((a, b) => b.mm > a.mm ? b : a);
     if (k >= win.length) return S.vRainAllDay(hm(peak.t));
     return S.vRainNow(hm(win[k].t), hm(peak.t));
   }
@@ -725,6 +753,29 @@ function verdictText(L, i, radarWet){
 }
 
 /* ---------- วาดหน้า ---------- */
+function paintVerdict(){
+  if (!DATA) return;
+  const S = T();
+  const L = DATA.locations.find(x => x.id === activeId) ?? DATA.locations[0];
+  const H = L.hourly;
+  const t0 = parseBkk(H.time[0]).getTime();
+  const i = Math.max(0, Math.min(Math.floor((Date.now() - t0) / 3600000), H.time.length - 1));
+
+  /* ถ้าข้อความหาย ให้เงียบไว้ดีกว่าโชว์คำว่า undefined ให้ผู้ใช้เห็น */
+  let text;
+  try { text = verdictText(L, i, radar.wet); } catch { text = null; }
+  $("verdict").innerHTML = (typeof text === "string" && text) ? text : (S.vNoData ?? "");
+
+  const el = $("verdictSrc");
+  if (!el) return;                       // เผื่อ HTML เป็นรุ่นเก่า
+  const hasRadar = radar.wet !== null && radar.wetAt;
+  const line = hasRadar
+    ? S.srcRadar?.(new Date(radar.wetAt).toLocaleTimeString("en-GB",
+        { timeZone:"Asia/Bangkok", hour:"2-digit", minute:"2-digit" }))
+    : S.srcModel;
+  el.textContent = typeof line === "string" ? line : "";
+}
+
 function applyStatic(){
   const S = T();
   document.documentElement.lang = lang;
@@ -753,7 +804,8 @@ function render(){
   $("stamp").textContent = S.updated(clock);
 
   const c = L.cur;
-  $("verdict").innerHTML = verdictText(L, i);
+  paintVerdict();
+  refreshRadarWet(L);
   $("feels").textContent = c.app.toFixed(1);
   $("actual").textContent = S.actual(c.t.toFixed(1), Math.round(c.wind));
   $("cond").textContent = wmo(c.wc) + " · " + L[lang].near;
@@ -912,10 +964,12 @@ async function radarWetAt(lat, lon){
 
 /* เรียกแบบไม่บล็อกการวาดหน้า ได้ผลแล้วค่อยวาดประโยคสรุปใหม่ */
 function refreshRadarWet(L){
-  const key = `${round3(L.pt.lat)},${round3(L.pt.lon)}`;
+  const pt = L.pt ?? L.grid;             // ข้อมูลรุ่นเก่าไม่มี pt ใช้พิกัดกริดแทนได้
+  if (!pt) return;
+  const key = `${round3(pt.lat)},${round3(pt.lon)}`;
   if (radar.wetKey === key && radar.wetAt && Date.now() - radar.wetAt < 6 * 60000) return;
   radar.wetKey = key;
-  radarWetAt(L.pt.lat, L.pt.lon)
+  radarWetAt(pt.lat, pt.lon)
     .then(r => {
       if (radar.wetKey !== key) return;      // ผู้ใช้เปลี่ยนพื้นที่ไปแล้ว ทิ้งผลเก่า
       radar.wet = r ? r.wet : null;
