@@ -10,6 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bai+Jamjuree:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Thai:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <style>
   *,*::before,*::after{box-sizing:border-box}
   :root{
@@ -151,6 +152,37 @@
     .row .cond{display:none}
   }
 
+  /* radar */
+  .maparea{position:relative; border-radius:11px; overflow:hidden; border:1px solid var(--line);
+           background:var(--surface2); height:320px;}
+  @media (max-width:520px){.maparea{height:270px}}
+  #map{position:absolute; inset:0; background:var(--surface2);}
+  .leaflet-container{font-family:var(--body); background:var(--surface2);}
+  .leaflet-control-attribution{font-size:9.5px!important; background:rgba(255,255,255,.72)!important; color:#4a5a57!important;}
+  .leaflet-control-attribution a{color:#3a6d80!important;}
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]) .leaflet-control-attribution{background:rgba(10,20,19,.7)!important; color:#8ea09c!important;}
+    :root:not([data-theme="light"]) .leaflet-control-attribution a{color:#7fc4da!important;}
+  }
+  :root[data-theme="dark"] .leaflet-control-attribution{background:rgba(10,20,19,.7)!important; color:#8ea09c!important;}
+  :root[data-theme="dark"] .leaflet-control-attribution a{color:#7fc4da!important;}
+  .mapveil{position:absolute; inset:0; z-index:500; display:flex; align-items:center; justify-content:center;
+           background:rgba(20,32,30,.30); cursor:pointer; font-size:13px; font-weight:500;}
+  .mapveil span{background:var(--surface); color:var(--ink); border:1px solid var(--line);
+           border-radius:999px; padding:7px 15px; box-shadow:var(--shadow);}
+  .radarbar{display:flex; align-items:center; gap:11px; margin-top:12px;}
+  .playbtn{flex:0 0 auto; width:34px; height:34px; border-radius:50%; border:1px solid var(--line);
+           background:var(--surface); color:var(--ink); cursor:pointer; font-size:13px; line-height:1;
+           display:inline-flex; align-items:center; justify-content:center;}
+  .playbtn:hover{border-color:var(--rain)}
+  .radarbar input[type=range]{flex:1 1 auto; min-width:0; accent-color:var(--rain); height:20px;}
+  .frametime{flex:0 0 auto; font-family:var(--mono); font-size:12px; color:var(--ink2);
+             min-width:82px; text-align:right;}
+  .frametime.now{color:var(--heat); font-weight:500;}
+  .radarscale{display:flex; align-items:center; gap:7px; margin-top:10px; font-size:11px; color:var(--muted);}
+  .radarscale .bar{flex:0 0 118px; height:7px; border-radius:4px;
+      background:linear-gradient(90deg,#8fd3f4,#2f8fd0,#1f5fae,#3fae51,#e8d13a,#e2792c,#c3342c);}
+
   .note{font-size:12.5px; color:var(--muted); line-height:1.6;}
   .note b{color:var(--ink2); font-weight:600;}
   .msg{padding:12px 15px; border-radius:11px; background:var(--surface2);
@@ -211,6 +243,27 @@
         </div>
       </section>
 
+      <section class="card sect" id="radarCard">
+        <div class="sect-head">
+          <h2 data-i18n="radarTitle"></h2>
+          <span class="hint" data-i18n="radarHint"></span>
+        </div>
+        <div class="maparea">
+          <div id="map"></div>
+          <div class="mapveil" id="mapveil" hidden><span data-i18n="radarTap"></span></div>
+        </div>
+        <div class="radarbar">
+          <button class="playbtn" id="playbtn" type="button" aria-label="play">&#9654;</button>
+          <input type="range" id="frame" min="0" max="0" value="0" step="1" aria-label="frame">
+          <span class="frametime" id="frametime">–</span>
+        </div>
+        <div class="radarscale">
+          <span data-i18n="radarLight"></span>
+          <i class="bar"></i>
+          <span data-i18n="radarHeavy"></span>
+        </div>
+      </section>
+
       <div class="tiles">
         <div class="card tile"><span class="k">PM2.5</span><span class="v" id="pm">–</span><span class="n" id="pmNote">–</span></div>
         <div class="card tile"><span class="k" data-i18n="uvToday"></span><span class="v" id="uv">–</span><span class="n" id="uvNote">–</span></div>
@@ -231,6 +284,7 @@
   <p class="note" id="foot"></p>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
 "use strict";
 
@@ -284,6 +338,15 @@ const I18N = {
     footGeo: " · <b>พิกัดของคุณเก็บอยู่ในเบราว์เซอร์เครื่องนี้เท่านั้น</b> ใช้เพื่อถามพยากรณ์จาก Open-Meteo และไม่ได้ส่งไปที่อื่น",
     tip: (h, pop, mm, d) => `${h}:00 · โอกาสฝน ${pop}% · ${mm} มม. · ${d}`,
     midnight: "เที่ยงคืน",
+    radarTitle: "เรดาร์ฝน ย้อนหลัง 2 ชั่วโมง",
+    radarHint: "ฝนที่ตกอยู่จริง ไม่ใช่การพยากรณ์",
+    radarTap: "แตะเพื่อเลื่อนแผนที่",
+    radarLight: "ฝนเบา", radarHeavy: "ฝนหนัก",
+    radarNow: "ตอนนี้",
+    radarAgo: n => `${n} นาทีก่อน`,
+    radarAhead: n => `อีก ${n} นาที`,
+    radarFail: "โหลดภาพเรดาร์ไม่ได้ในตอนนี้",
+    play: "เล่น", pause: "หยุด",
     wmo: {0:"ท้องฟ้าแจ่มใส",1:"มีเมฆบางส่วน",2:"มีเมฆเป็นส่วนมาก",3:"เมฆมาก",45:"หมอก",48:"หมอกน้ำค้างแข็ง",
       51:"ฝนละอองเบา",53:"ฝนละออง",55:"ฝนละอองหนัก",56:"ฝนละอองเย็นจัด",57:"ฝนละอองเย็นจัดหนัก",
       61:"ฝนเล็กน้อย",63:"ฝนปานกลาง",65:"ฝนหนัก",66:"ฝนเย็นจัด",67:"ฝนเย็นจัดหนัก",
@@ -334,6 +397,15 @@ const I18N = {
     footGeo: " · <b>Your coordinates stay in this browser.</b> They are used to query Open-Meteo and are sent nowhere else",
     tip: (h, pop, mm, d) => `${h}:00 · ${pop}% chance · ${mm} mm · ${d}`,
     midnight: "midnight",
+    radarTitle: "Radar, last 2 hours",
+    radarHint: "Rain that is actually falling, not a forecast",
+    radarTap: "Tap to pan the map",
+    radarLight: "Light", radarHeavy: "Heavy",
+    radarNow: "now",
+    radarAgo: n => `${n} min ago`,
+    radarAhead: n => `in ${n} min`,
+    radarFail: "Radar imagery is unavailable right now",
+    play: "Play", pause: "Pause",
     wmo: {0:"Clear sky",1:"Mainly clear",2:"Partly cloudy",3:"Overcast",45:"Fog",48:"Rime fog",
       51:"Light drizzle",53:"Drizzle",55:"Heavy drizzle",56:"Freezing drizzle",57:"Heavy freezing drizzle",
       61:"Light rain",63:"Moderate rain",65:"Heavy rain",66:"Freezing rain",67:"Heavy freezing rain",
@@ -734,7 +806,185 @@ function render(){
 
   $("foot").innerHTML = S.foot(DATA.source, L.grid.lat.toFixed(3), L.grid.lon.toFixed(3))
                       + (L.id === "here" ? S.footGeo : "");
+
+  /* ให้แผนที่เรดาร์ตามพื้นที่ที่เลือก และป้ายเวลาเป็นภาษาปัจจุบัน */
+  radarCentre();
+  if (radar.frames.length) showFrame(radar.idx);
 }
+
+/* =====================================================================
+   เรดาร์ฝน · RainViewer + Leaflet
+   ชั้นฟรีให้ภาพย้อนหลัง 2 ชั่วโมง ทุก 10 นาที ช่อง nowcast มีอยู่ใน API
+   แต่ตอนนี้ว่าง โค้ดรองรับไว้แล้วถ้าวันหนึ่งเขาเปิดใช้
+   ===================================================================== */
+const RV_INDEX = "https://api.rainviewer.com/public/weather-maps.json";
+/* แผนที่พื้นหลัง: Esri Gray Canvas — ใช้ได้โดยไม่ต้องมี API key มีทั้งโทนสว่างและมืด
+   (CARTO เลิกให้ใช้ฟรีแบบไม่มี key แล้ว จะคืน tile ที่เขียนว่า API KEY REQUIRED)
+   แยกเป็นสองชั้น: Base คือพื้นถนน/น้ำ ส่วน Reference คือตัวหนังสือชื่อสถานที่ */
+const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas";
+const BASEMAP = {
+  light: { base: `${ESRI}/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}`,
+           ref:  `${ESRI}/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}` },
+  dark:  { base: `${ESRI}/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}`,
+           ref:  `${ESRI}/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}` },
+};
+const BASE_ATTR = 'Tiles &copy; <a href="https://www.esri.com/">Esri</a> · ' +
+                  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · ' +
+                  'radar <a href="https://www.rainviewer.com/">RainViewer</a>';
+
+const radar = {
+  map: null, base: null, ref: null, marker: null,
+  frames: [], layers: new Map(), idx: 0, playing: false, timer: null, ready: false,
+};
+
+const isDarkNow = () => matchMedia("(prefers-color-scheme: dark)").matches;
+
+function radarFrameLabel(f){
+  const S = T();
+  const mins = Math.round((f.time * 1000 - Date.now()) / 60000);
+  if (Math.abs(mins) <= 4) return { text: S.radarNow, now: true };
+  return mins < 0 ? { text: S.radarAgo(-mins), now: false }
+                  : { text: S.radarAhead(mins), now: false };
+}
+
+function radarLayer(i){
+  if (radar.layers.has(i)) return radar.layers.get(i);
+  const f = radar.frames[i];
+  /* 512px tiles, colour scheme 4 (Universal Blue), smooth on, snow off.
+     สำคัญ: ชั้นฟรีของ RainViewer มีภาพเรดาร์จริงถึง zoom 7 เท่านั้น
+     ขอ tile ที่ zoom สูงกว่านั้นจะได้ภาพแจ้งเตือนกลับมาแทนเรดาร์ (ทุก tile ขนาดเท่ากันเป๊ะ)
+     ตั้ง maxNativeZoom:7 ให้ Leaflet ดึง z7 แล้วขยายเอง — ได้ภาพจริงทุกระดับซูม */
+  const layer = L.tileLayer(`${radar.host}${f.path}/512/{z}/{x}/{y}/4/1_0.png`, {
+    tileSize: 256, opacity: 0, zIndex: 400, maxNativeZoom: 7, crossOrigin: true,
+  });
+  radar.layers.set(i, layer);
+  layer.addTo(radar.map);
+  return layer;
+}
+
+function showFrame(i){
+  if (!radar.frames.length) return;
+  radar.idx = (i + radar.frames.length) % radar.frames.length;
+  radar.frames.forEach((_, k) => {
+    if (radar.layers.has(k)) radar.layers.get(k).setOpacity(0);
+  });
+  radarLayer(radar.idx).setOpacity(0.68);
+  /* โหลดเฟรมถัดไปล่วงหน้าไว้ ให้อนิเมชันไม่กระตุก */
+  radarLayer((radar.idx + 1) % radar.frames.length);
+
+  $("frame").value = String(radar.idx);
+  const lab = radarFrameLabel(radar.frames[radar.idx]);
+  const el = $("frametime");
+  el.textContent = lab.text;
+  el.className = "frametime" + (lab.now ? " now" : "");
+}
+
+function radarPlay(on){
+  radar.playing = on;
+  clearInterval(radar.timer);
+  const b = $("playbtn");
+  b.innerHTML = on ? "&#10073;&#10073;" : "&#9654;";
+  b.setAttribute("aria-label", on ? T().pause : T().play);
+  if (!on) return;
+  radar.timer = setInterval(() => {
+    /* ค้างที่เฟรมล่าสุดหนึ่งจังหวะก่อนวนกลับ */
+    const atEnd = radar.idx === radar.frames.length - 1;
+    showFrame(atEnd ? 0 : radar.idx + 1);
+  }, 520);
+}
+
+function radarCentre(){
+  if (!radar.ready || !DATA) return;
+  const L0 = DATA.locations.find(x => x.id === activeId) ?? DATA.locations[0];
+  const src = allLocs().find(x => x.id === L0.id);
+  const pt = [src ? src.lat : L0.grid.lat, src ? src.lon : L0.grid.lon];
+  radar.map.setView(pt, radar.map.getZoom() || 9, { animate: true });
+  if (radar.marker) radar.marker.setLatLng(pt);
+}
+
+function applyBasemap(){
+  if (!radar.map) return;
+  const set = (isDarkNow() && document.documentElement.dataset.theme !== "light")
+    ? BASEMAP.dark : BASEMAP.light;
+  if (radar.base) radar.map.removeLayer(radar.base);
+  if (radar.ref)  radar.map.removeLayer(radar.ref);
+
+  radar.base = L.tileLayer(set.base, {
+    maxNativeZoom: 15, detectRetina: true,
+    attribution: BASE_ATTR, zIndex: 100,
+  }).addTo(radar.map);
+
+  /* ชื่อสถานที่วางทับเรดาร์ ไม่งั้นอ่านไม่ออกเวลาฝนหนา */
+  radar.ref = L.tileLayer(set.ref, {
+    maxNativeZoom: 15, detectRetina: true, zIndex: 600,
+  }).addTo(radar.map);
+}
+
+async function initRadar(){
+  if (radar.ready || typeof L === "undefined") return;
+  radar.ready = true;
+
+  radar.map = L.map("map", {
+    zoomControl: true, attributionControl: true,
+    scrollWheelZoom: false,          // ไม่แย่งการเลื่อนหน้าเว็บบนคอม
+    dragging: !L.Browser.mobile,     // บนมือถือรอให้แตะเปิดก่อน
+    /* จำกัดที่ 10 เพราะเรดาร์ละเอียดจริงแค่ราว 1 กม. ซูมเกินนี้ไม่มีข้อมูลเพิ่ม มีแต่เบลอ */
+    minZoom: 6, maxZoom: 10,
+  }).setView([13.82, 100.53], 9);
+
+  applyBasemap();
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyBasemap);
+
+  radar.marker = L.circleMarker([13.82, 100.53], {
+    radius: 6, weight: 2, color: "#B85226", fillColor: "#B85226", fillOpacity: .9,
+  }).addTo(radar.map);
+
+  radar.map.on("click", () => radar.map.scrollWheelZoom.enable());
+
+  if (L.Browser.mobile) {
+    const veil = $("mapveil");
+    veil.hidden = false;
+    veil.addEventListener("click", () => {
+      radar.map.dragging.enable();
+      veil.hidden = true;
+    }, { once: true });
+  }
+
+  try {
+    const j = await (await fetch(RV_INDEX, { cache: "no-store" })).json();
+    radar.host = j.host;
+    radar.frames = [...(j.radar?.past ?? []), ...(j.radar?.nowcast ?? [])];
+    if (!radar.frames.length) throw new Error("no frames");
+  } catch {
+    $("frametime").textContent = T().radarFail;
+    $("playbtn").disabled = true;
+    $("frame").disabled = true;
+    return;
+  }
+
+  $("frame").max = String(radar.frames.length - 1);
+  radarCentre();
+  showFrame(radar.frames.length - 1);   // เริ่มที่ภาพล่าสุด
+  radarPlay(true);
+
+  $("playbtn").addEventListener("click", () => radarPlay(!radar.playing));
+  $("frame").addEventListener("input", e => { radarPlay(false); showFrame(+e.target.value); });
+}
+
+/* สร้างแผนที่ตอนเลื่อนมาถึงเท่านั้น ไม่กิน tile ของคนที่ไม่เลื่อนลงมา */
+if ("IntersectionObserver" in window) {
+  const io = new IntersectionObserver(es => {
+    if (es.some(e => e.isIntersecting)) { io.disconnect(); initRadar(); }
+  }, { rootMargin: "200px" });
+  io.observe($("radarCard"));
+} else {
+  initRadar();
+}
+
+/* หยุดอนิเมชันเมื่อสลับไปแท็บอื่น */
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible" && radar.playing) radarPlay(false);
+});
 
 /* ---------- ปุ่มสลับภาษา ---------- */
 $("langsw").addEventListener("click", e => {
