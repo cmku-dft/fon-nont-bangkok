@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ฝนนนท์–บางกอก</title>
-<meta name="description" content="พยากรณ์ฝนรายชั่วโมงสำหรับนนทบุรีและกรุงเทพฯ พร้อมค่าฝุ่น PM2.5 และแนวโน้ม 7 วัน">
+<meta name="description" content="พยากรณ์ฝนรายชั่วโมงสำหรับนนทบุรีและกรุงเทพฯ · Hourly rain forecast for Nonthaburi and Bangkok">
 <meta name="theme-color" content="#EEF2F1" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0B1312" media="(prefers-color-scheme: dark)">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -55,12 +55,22 @@
         display:flex; flex-direction:column; gap:18px;}
   h1,h2,h3{font-family:var(--display); margin:0; text-wrap:balance; line-height:1.25;}
   p{margin:0}
-  .num{font-family:var(--mono); font-variant-numeric:tabular-nums;}
 
-  .masthead{display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap;}
+  /* masthead */
+  .masthead{display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;}
   .masthead h1{font-size:26px; font-weight:700; letter-spacing:-.01em;}
+  .mh-right{display:flex; align-items:center; gap:10px;}
   .stamp{font-size:12px; color:var(--muted); font-family:var(--mono);}
+  .langsw{display:inline-flex; border:1px solid var(--line); border-radius:999px;
+          overflow:hidden; background:var(--surface);}
+  .langsw button{font-family:var(--body); font-size:12px; font-weight:600; letter-spacing:.02em;
+          border:0; background:transparent; color:var(--muted); padding:5px 11px; cursor:pointer;
+          transition:background .15s, color .15s;}
+  .langsw button[aria-pressed="true"]{background:var(--storm); color:var(--paper);}
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .langsw button[aria-pressed="true"]{color:#08201C}}
+  :root[data-theme="dark"] .langsw button[aria-pressed="true"]{color:#08201C}
 
+  /* place chips */
   .places{display:flex; gap:7px; overflow-x:auto; padding-bottom:3px; margin-inline:-2px; padding-inline:2px;}
   .places::-webkit-scrollbar{height:0}
   .chip{flex:0 0 auto; border:1px solid var(--line); background:var(--surface); color:var(--ink2);
@@ -95,7 +105,7 @@
   .sect{padding:16px 18px 18px;}
   .sect-head{display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin-bottom:14px;}
   .sect-head h2{font-size:14px; font-weight:600; letter-spacing:.02em;}
-  .sect-head .hint{font-size:11.5px; color:var(--muted);}
+  .sect-head .hint{font-size:11.5px; color:var(--muted); text-align:right;}
   .tl{display:flex; gap:2px; align-items:flex-end; height:104px;}
   .tl .col{flex:1 1 0; min-width:0; display:flex; flex-direction:column; justify-content:flex-end;
            height:100%; position:relative;}
@@ -122,7 +132,7 @@
   .tile .n.good{color:var(--good)} .tile .n.warn{color:var(--warn)} .tile .n.hot{color:var(--heat)}
 
   .week{display:flex; flex-direction:column;}
-  .row{display:grid; grid-template-columns:52px 1fr 74px 58px; align-items:center; gap:10px;
+  .row{display:grid; grid-template-columns:56px 1fr 74px 58px; align-items:center; gap:10px;
        padding:10px 18px; border-top:1px solid var(--line);}
   .row:first-child{border-top:none}
   .row .d{display:flex; flex-direction:column; line-height:1.2;}
@@ -137,7 +147,7 @@
             background:linear-gradient(90deg,var(--rain),var(--heat));}
   .tnum{font-family:var(--mono); font-size:11px; color:var(--ink2); display:flex; justify-content:space-between;}
   @media (max-width:430px){
-    .row{grid-template-columns:46px 1fr 62px}
+    .row{grid-template-columns:50px 1fr 62px}
     .row .cond{display:none}
   }
 
@@ -156,25 +166,31 @@
 <div class="wrap">
 
   <div class="masthead">
-    <h1>ฝนนนท์–บางกอก</h1>
-    <span class="stamp" id="stamp">กำลังโหลด…</span>
+    <h1 id="title">ฝนนนท์–บางกอก</h1>
+    <div class="mh-right">
+      <span class="stamp" id="stamp"></span>
+      <div class="langsw" id="langsw" role="group" aria-label="Language">
+        <button type="button" data-lang="th">ไทย</button>
+        <button type="button" data-lang="en">EN</button>
+      </div>
+    </div>
   </div>
 
-  <div class="places" id="places" role="group" aria-label="เลือกพื้นที่"></div>
+  <div class="places" id="places" role="group"></div>
 
   <div id="msg" hidden></div>
 
   <div id="app" class="skel">
     <div style="display:flex;flex-direction:column;gap:18px">
       <section class="card hero">
-        <p class="verdict" id="verdict">กำลังดึงพยากรณ์…</p>
+        <p class="verdict" id="verdict"></p>
         <div class="nowrow">
           <div>
-            <span class="feels-lab">รู้สึกเหมือน</span>
-            <span class="feels"><span class="big num" id="feels">–</span><span class="unit">°</span></span>
+            <span class="feels-lab" data-i18n="feelsLike"></span>
+            <span class="feels"><span class="big" id="feels">–</span><span class="unit">°</span></span>
           </div>
           <div class="actual">
-            <span class="t"><span id="temp">–</span>°C · ลม <span id="wind">–</span> กม./ชม.</span>
+            <span class="t" id="actual">–</span>
             <span class="c" id="cond">–</span>
           </div>
         </div>
@@ -182,30 +198,30 @@
 
       <section class="card sect">
         <div class="sect-head">
-          <h2>ฝน 30 ชั่วโมงข้างหน้า</h2>
-          <span class="hint">แท่ง = โอกาสตก · สี = ความแรง</span>
+          <h2 data-i18n="next30"></h2>
+          <span class="hint" data-i18n="tlHint"></span>
         </div>
         <div class="tl" id="tl"></div>
         <div class="axis" id="axis"></div>
         <div class="legend">
-          <span><i class="sw" style="background:var(--rainsoft)"></i>ไม่ตก/ละออง</span>
-          <span><i class="sw" style="background:var(--rain)"></i>ฝนปรอย</span>
-          <span><i class="sw" style="background:var(--storm)"></i>ฝนหนัก 1 มม.+</span>
-          <span><i class="sw" style="border:1.5px solid var(--heat);background:transparent"></i>ชั่วโมงนี้</span>
+          <span><i class="sw" style="background:var(--rainsoft)"></i><span data-i18n="legDry"></span></span>
+          <span><i class="sw" style="background:var(--rain)"></i><span data-i18n="legLight"></span></span>
+          <span><i class="sw" style="background:var(--storm)"></i><span data-i18n="legHeavy"></span></span>
+          <span><i class="sw" style="border:1.5px solid var(--heat);background:transparent"></i><span data-i18n="legNow"></span></span>
         </div>
       </section>
 
       <div class="tiles">
         <div class="card tile"><span class="k">PM2.5</span><span class="v" id="pm">–</span><span class="n" id="pmNote">–</span></div>
-        <div class="card tile"><span class="k">UV วันนี้</span><span class="v" id="uv">–</span><span class="n" id="uvNote">–</span></div>
-        <div class="card tile"><span class="k">ความชื้น</span><span class="v" id="rh">–</span><span class="n" id="rhNote">–</span></div>
-        <div class="card tile"><span class="k">ฝนสะสมวันนี้</span><span class="v" id="sum">–</span><span class="n" id="sumNote">–</span></div>
+        <div class="card tile"><span class="k" data-i18n="uvToday"></span><span class="v" id="uv">–</span><span class="n" id="uvNote">–</span></div>
+        <div class="card tile"><span class="k" data-i18n="humidity"></span><span class="v" id="rh">–</span><span class="n" id="rhNote">–</span></div>
+        <div class="card tile"><span class="k" data-i18n="rainToday"></span><span class="v" id="sum">–</span><span class="n" id="sumNote">–</span></div>
       </div>
 
       <section class="card">
         <div class="sect-head" style="padding:16px 18px 0; margin-bottom:10px;">
-          <h2>7 วันข้างหน้า</h2>
-          <span class="hint">ต่ำสุด–สูงสุด · ฝนสะสม</span>
+          <h2 data-i18n="next7"></h2>
+          <span class="hint" data-i18n="weekHint"></span>
         </div>
         <div class="week" id="week"></div>
       </section>
@@ -218,43 +234,154 @@
 <script>
 "use strict";
 
-const WMO = {0:"ท้องฟ้าแจ่มใส",1:"มีเมฆบางส่วน",2:"มีเมฆเป็นส่วนมาก",3:"เมฆมาก",45:"หมอก",48:"หมอกน้ำค้างแข็ง",
-51:"ฝนละอองเบา",53:"ฝนละออง",55:"ฝนละอองหนัก",56:"ฝนละอองเย็นจัด",57:"ฝนละอองเย็นจัดหนัก",
-61:"ฝนเล็กน้อย",63:"ฝนปานกลาง",65:"ฝนหนัก",66:"ฝนเย็นจัด",67:"ฝนเย็นจัดหนัก",
-80:"ฝนซู่",81:"ฝนซู่ปานกลาง",82:"ฝนซู่หนักมาก",95:"ฝนฟ้าคะนอง",96:"ฝนฟ้าคะนองมีลูกเห็บ",99:"พายุฝนฟ้าคะนอง"};
-const wmo = c => WMO[c] ?? "—";
-const pad = n => String(n).padStart(2,"0");
+/* =====================================================================
+   ข้อความสองภาษา · Bilingual strings
+   เพิ่มภาษาใหม่ได้โดยเติมคีย์อีกชุดใน I18N แล้วเพิ่มปุ่มใน .langsw
+   ===================================================================== */
+const I18N = {
+  th: {
+    title: "ฝนนนท์–บางกอก",
+    loading: "กำลังโหลด…",
+    locating: "กำลังหาตำแหน่ง…",
+    updated: t => "อัปเดต " + t + " น.",
+    retry: "ลองใหม่",
+    feelsLike: "รู้สึกเหมือน",
+    actual: (t, w) => `${t}°C · ลม ${w} กม./ชม.`,
+    next30: "ฝน 30 ชั่วโมงข้างหน้า",
+    tlHint: "แท่ง = โอกาสตก · สี = ความแรง",
+    legDry: "ไม่ตก/ละออง", legLight: "ฝนปรอย", legHeavy: "ฝนหนัก 1 มม.+", legNow: "ชั่วโมงนี้",
+    uvToday: "UV วันนี้", humidity: "ความชื้น", rainToday: "ฝนสะสมวันนี้",
+    next7: "7 วันข้างหน้า", weekHint: "ต่ำสุด–สูงสุด · ฝนสะสม",
+    today: "วันนี้",
+    days: ["อา","จ","อ","พ","พฤ","ศ","ส"],
+    mm: "มม.",
+    useLocation: "ใช้ตำแหน่งปัจจุบัน",
+    myLocation: "ตำแหน่งปัจจุบัน",
+    searching: "กำลังหา…",
+    updateLocation: "อัปเดตตำแหน่ง",
+    pmNotes: ["ดีมาก","ปานกลาง","เริ่มมีผลต่อสุขภาพ","ควรใส่หน้ากาก"],
+    uvNotes: ["ต่ำ","ปานกลาง","สูง — ทาครีมกันแดด","สูงมาก","อันตราย"],
+    rhNote: d => `ต่างจากอุณหภูมิจริง +${d}°`,
+    sumNotes: ["ไม่มีปัญหา","ถนนเปียก รถอาจติด","เสี่ยงน้ำขังจุดต่ำ","เสี่ยงน้ำท่วมขัง"],
+    noAir: "ไม่มีข้อมูลฝุ่นตอนนี้",
+    vRainAllDay: h => `ฝนโปรยยาวทั้งวัน — หนักสุดราว <em>${h} น.</em>`,
+    vRainNow: (end, peak) => `ฝนตกอยู่ตอนนี้ น่าจะซาราว <em>${end} น.</em> · หนักสุดช่วง ${peak}`,
+    vDryNow: (h, gap) => `ตอนนี้แห้ง · ฝนน่าจะกลับมา <em>${h} น.</em> (${gap})`,
+    gapSoon: "อีกไม่ถึงชั่วโมง",
+    gapHours: n => `อีกราว ${n} ชม.`,
+    vNoRain: "ช่วง 12 ชั่วโมงนี้ไม่มีสัญญาณฝนชัด — <em>ไม่ต้องพกร่มก็ได้</em>",
+    vNoData: "ข้อมูลรายชั่วโมงหมดช่วงแล้ว — ดูสรุป 7 วันด้านล่างแทน",
+    errStale: "ดึงข้อมูลใหม่ไม่สำเร็จ กำลังแสดงข้อมูลรอบก่อน",
+    errFirst: m => `ตอนนี้ดึงพยากรณ์ไม่ได้ (${m})`,
+    errNoPlaces: "ไม่มีข้อมูลพื้นที่",
+    errPartial: "ข้อมูลพยากรณ์ที่ได้กลับมาไม่ครบ",
+    geoDenied: "ไม่ได้รับอนุญาตให้ใช้ตำแหน่ง — เปิดสิทธิ์ให้เว็บนี้ในการตั้งค่าเบราว์เซอร์แล้วลองใหม่",
+    geoTimeout: "หาตำแหน่งนานเกินไป ลองใหม่อีกครั้ง หรือออกไปที่โล่งกว่านี้",
+    geoOther: "หาตำแหน่งไม่ได้ในตอนนี้ ลองใหม่อีกครั้ง",
+    geoNoAnswer: "ยังไม่ได้คำตอบเรื่องสิทธิ์ตำแหน่ง — ถ้ามีกล่องขออนุญาตขึ้นมา ให้กดอนุญาตแล้วลองใหม่",
+    foot: (src, la, lo) =>
+      `ข้อมูลจาก <b>${src}</b> · ตำแหน่งกริดที่ใช้จริง ${la}, ${lo} (ความละเอียดราว 11 กม. ต่อช่อง) · หน้านี้ดึงข้อมูลใหม่ทุก 10 นาที`,
+    footGeo: " · <b>พิกัดของคุณเก็บอยู่ในเบราว์เซอร์เครื่องนี้เท่านั้น</b> ใช้เพื่อถามพยากรณ์จาก Open-Meteo และไม่ได้ส่งไปที่อื่น",
+    tip: (h, pop, mm, d) => `${h}:00 · โอกาสฝน ${pop}% · ${mm} มม. · ${d}`,
+    midnight: "เที่ยงคืน",
+    wmo: {0:"ท้องฟ้าแจ่มใส",1:"มีเมฆบางส่วน",2:"มีเมฆเป็นส่วนมาก",3:"เมฆมาก",45:"หมอก",48:"หมอกน้ำค้างแข็ง",
+      51:"ฝนละอองเบา",53:"ฝนละออง",55:"ฝนละอองหนัก",56:"ฝนละอองเย็นจัด",57:"ฝนละอองเย็นจัดหนัก",
+      61:"ฝนเล็กน้อย",63:"ฝนปานกลาง",65:"ฝนหนัก",66:"ฝนเย็นจัด",67:"ฝนเย็นจัดหนัก",
+      80:"ฝนซู่",81:"ฝนซู่ปานกลาง",82:"ฝนซู่หนักมาก",95:"ฝนฟ้าคะนอง",96:"ฝนฟ้าคะนองมีลูกเห็บ",99:"พายุฝนฟ้าคะนอง"},
+  },
+  en: {
+    title: "Nonthaburi–Bangkok Rain",
+    loading: "Loading…",
+    locating: "Finding you…",
+    updated: t => "Updated " + t,
+    retry: "Retry",
+    feelsLike: "Feels like",
+    actual: (t, w) => `${t}°C · wind ${w} km/h`,
+    next30: "Rain, next 30 hours",
+    tlHint: "Bar = chance · colour = intensity",
+    legDry: "Dry or drizzle", legLight: "Light rain", legHeavy: "Heavy, 1 mm+", legNow: "This hour",
+    uvToday: "UV today", humidity: "Humidity", rainToday: "Rain today",
+    next7: "Next 7 days", weekHint: "Low–high · total rain",
+    today: "Today",
+    days: ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],
+    mm: "mm",
+    useLocation: "Use my location",
+    myLocation: "My location",
+    searching: "Finding…",
+    updateLocation: "Update location",
+    pmNotes: ["Very good","Moderate","Unhealthy for some","Wear a mask"],
+    uvNotes: ["Low","Moderate","High — use sunscreen","Very high","Extreme"],
+    rhNote: d => `+${d}° above the actual reading`,
+    sumNotes: ["Nothing to worry about","Wet roads, slower traffic","Puddles in low spots","Flooding likely"],
+    noAir: "No air data right now",
+    vRainAllDay: h => `Rain on and off all day — heaviest near <em>${h}</em>`,
+    vRainNow: (end, peak) => `Raining now · easing around <em>${end}</em> · heaviest at ${peak}`,
+    vDryNow: (h, gap) => `Dry for now · rain returns around <em>${h}</em> (${gap})`,
+    gapSoon: "within the hour",
+    gapHours: n => `in about ${n} h`,
+    vNoRain: "No clear rain signal for the next 12 hours — <em>leave the umbrella</em>",
+    vNoData: "Hourly data has run out — see the 7-day summary below",
+    errStale: "Could not refresh — showing the previous reading",
+    errFirst: m => `Can't reach the forecast right now (${m})`,
+    errNoPlaces: "No locations came back",
+    errPartial: "The forecast came back incomplete",
+    geoDenied: "Location permission was refused — allow this site in your browser settings, then try again",
+    geoTimeout: "Took too long to find you. Try again, or move somewhere more open",
+    geoOther: "Could not find your location right now. Try again",
+    geoNoAnswer: "No answer to the location prompt yet — if you see it, tap Allow and try again",
+    foot: (src, la, lo) =>
+      `Data from <b>${src}</b> · grid cell in use ${la}, ${lo} (about 11 km per cell) · this page refreshes every 10 minutes`,
+    footGeo: " · <b>Your coordinates stay in this browser.</b> They are used to query Open-Meteo and are sent nowhere else",
+    tip: (h, pop, mm, d) => `${h}:00 · ${pop}% chance · ${mm} mm · ${d}`,
+    midnight: "midnight",
+    wmo: {0:"Clear sky",1:"Mainly clear",2:"Partly cloudy",3:"Overcast",45:"Fog",48:"Rime fog",
+      51:"Light drizzle",53:"Drizzle",55:"Heavy drizzle",56:"Freezing drizzle",57:"Heavy freezing drizzle",
+      61:"Light rain",63:"Moderate rain",65:"Heavy rain",66:"Freezing rain",67:"Heavy freezing rain",
+      80:"Rain showers",81:"Moderate showers",82:"Violent showers",95:"Thunderstorm",
+      96:"Thunderstorm with hail",99:"Severe thunderstorm"},
+  },
+};
 
-/* เวลาจาก Open-Meteo เป็นเวลาไทยแบบไม่มี offset ต้องเติมเอง */
-const parseBkk = s => new Date(s.length === 16 ? s + ":00+07:00" : s + "+07:00");
-/* แปลง Date เป็นมุมมองเวลาไทย เพื่ออ่าน getHours/getDay ได้ถูกไม่ว่าเครื่องอยู่โซนไหน */
-const inBkk = d => new Date(d.getTime() + (7*60 + d.getTimezoneOffset())*60000);
-
-const DAY_TH = ["อา","จ","อ","พ","พฤ","ศ","ส"];
 const $ = id => document.getElementById(id);
+function lsGet(k){ try { return localStorage.getItem("fnb:"+k); } catch { return null; } }
+function lsSet(k,v){ try { localStorage.setItem("fnb:"+k, v); } catch {} }
 
-let DATA = null;
-let activeId = localStorage_get("place") || null;
-let timer = null;
+/* ภาษาเริ่มต้น: ที่เคยเลือกไว้ ไม่งั้นดูจากภาษาเครื่อง */
+let lang = (() => {
+  const saved = lsGet("lang");
+  if (saved && I18N[saved]) return saved;
+  return (navigator.language || "").toLowerCase().startsWith("th") ? "th" : "en";
+})();
+const T = () => I18N[lang];
+const wmo = c => T().wmo[c] ?? "—";
 
-function localStorage_get(k){ try { return localStorage.getItem("fnb:"+k); } catch { return null; } }
-function localStorage_set(k,v){ try { localStorage.setItem("fnb:"+k, v); } catch {} }
-
-/* ---------- พื้นที่ที่แสดง ----------
-   เพิ่ม/แก้ได้ตามใจ ปุ่มด้านบนสร้างจากรายการนี้อัตโนมัติ
-   id ห้ามซ้ำกัน · หาพิกัดได้จาก Google Maps โดยคลิกขวาบนแผนที่ */
+/* =====================================================================
+   พื้นที่ที่แสดง · Locations
+   ทุกจุดมีชื่อสองภาษา · เพิ่มได้ตามใจ id ห้ามซ้ำ
+   ===================================================================== */
 const LOCS = [
-  { id:"nont",       name:"เมืองนนทบุรี",    near:"ปากเกร็ด · บางกรวย · ท่าน้ำนนท์",        lat:13.8591, lon:100.5217 },
-  { id:"bangyai",    name:"บางใหญ่",         near:"บางบัวทอง · ไทรน้อย · เซ็นทรัลเวสต์เกต", lat:13.8730, lon:100.3860 },
-  { id:"bkk",        name:"กรุงเทพฯ ชั้นใน", near:"ปทุมวัน · สาทร · บางรัก · พญาไท",        lat:13.7440, lon:100.5340 },
-  { id:"ladkrabang", name:"ลาดกระบัง",       near:"สุวรรณภูมิ · มีนบุรี · ร่มเกล้า",         lat:13.7220, lon:100.7860 },
-  { id:"bangna",     name:"บางนา",           near:"พระโขนง · สมุทรปราการ · แบริ่ง",         lat:13.6680, lon:100.6040 },
-  { id:"baan",       name:"บ้าน",            near:"ปากเกร็ด · บางกรวย · ท่าน้ำนนท์",        lat:13.86718, lon:100.53985 },
+  { id:"nont",       lat:13.8591,  lon:100.5217,
+    th:{ name:"เมืองนนทบุรี",    near:"ปากเกร็ด · บางกรวย · ท่าน้ำนนท์" },
+    en:{ name:"Nonthaburi",      near:"Pak Kret · Bang Kruai · Nonthaburi Pier" } },
+  { id:"bangyai",    lat:13.8730,  lon:100.3860,
+    th:{ name:"บางใหญ่",         near:"บางบัวทอง · ไทรน้อย · เซ็นทรัลเวสต์เกต" },
+    en:{ name:"Bang Yai",        near:"Bang Bua Thong · Sai Noi · Westgate" } },
+  { id:"bkk",        lat:13.7440,  lon:100.5340,
+    th:{ name:"กรุงเทพฯ ชั้นใน", near:"ปทุมวัน · สาทร · บางรัก · พญาไท" },
+    en:{ name:"Inner Bangkok",   near:"Pathum Wan · Sathon · Bang Rak · Phaya Thai" } },
+  { id:"ladkrabang", lat:13.7220,  lon:100.7860,
+    th:{ name:"ลาดกระบัง",       near:"สุวรรณภูมิ · มีนบุรี · ร่มเกล้า" },
+    en:{ name:"Lat Krabang",     near:"Suvarnabhumi · Min Buri · Rom Klao" } },
+  { id:"bangna",     lat:13.6680,  lon:100.6040,
+    th:{ name:"บางนา",           near:"พระโขนง · สมุทรปราการ · แบริ่ง" },
+    en:{ name:"Bang Na",         near:"Phra Khanong · Samut Prakan · Bearing" } },
+  { id:"baan",       lat:13.86718, lon:100.53985,
+    th:{ name:"บ้าน",            near:"ปากเกร็ด · บางกรวย · ท่าน้ำนนท์" },
+    en:{ name:"Home",            near:"Pak Kret · Bang Kruai · Nonthaburi Pier" } },
 ];
 
-/* ---------- ตำแหน่งปัจจุบันจากมือถือ ----------
-   พิกัดเก็บไว้ใน localStorage ของเครื่องผู้ใช้เท่านั้น ไม่ได้ส่งไปไหนนอกจาก Open-Meteo */
-const GEO_OK = typeof navigator !== "undefined" && "geolocation" in navigator && window.isSecureContext;
+/* ---------- ตำแหน่งปัจจุบันจากเครื่อง ---------- */
+const GEO_OK = "geolocation" in navigator && window.isSecureContext;
 let herePos = (() => {
   try {
     const p = JSON.parse(localStorage.getItem("fnb:here") || "null");
@@ -266,21 +393,31 @@ const round3 = n => Math.round(n * 1000) / 1000;
 
 function hereLoc(){
   if (!herePos) return null;
-  return { id:"here", name:"ตำแหน่งปัจจุบัน",
-           near:`${round3(herePos.lat)}, ${round3(herePos.lon)}`,
-           lat:herePos.lat, lon:herePos.lon };
+  const near = `${round3(herePos.lat)}, ${round3(herePos.lon)}`;
+  return { id:"here", lat:herePos.lat, lon:herePos.lon,
+           th:{ name:I18N.th.myLocation, near }, en:{ name:I18N.en.myLocation, near } };
 }
-/* รายการที่ใช้จริง = ตำแหน่งปัจจุบัน (ถ้ามี) นำหน้ารายการคงที่ */
 const allLocs = () => { const h = hereLoc(); return h ? [h, ...LOCS] : LOCS.slice(); };
 
-/* ลายนิ้วมือของรายการ ใช้ทิ้งแคชเก่าอัตโนมัติเมื่อ LOCS หรือตำแหน่งเปลี่ยน
-   ปัดเป็นทศนิยม 3 ตำแหน่ง (~100 ม.) เพื่อไม่ให้ GPS ขยับนิดเดียวแล้วแคชพังทุกครั้ง */
+/* ลายนิ้วมือของรายการ ใช้ทิ้งแคชเก่าเมื่อ LOCS หรือตำแหน่งเปลี่ยน
+   ปัด 3 ตำแหน่ง (~100 ม.) เพื่อไม่ให้ GPS ขยับนิดเดียวแล้วแคชพัง */
 const locKey = () => allLocs().map(l => `${l.id}@${round3(l.lat)},${round3(l.lon)}`).join("|");
 
 const WX_API = "https://api.open-meteo.com/v1/forecast";
 const AQ_API = "https://air-quality-api.open-meteo.com/v1/air-quality";
 
-/* Open-Meteo คืน array เมื่อขอหลายพิกัด และคืน object เดี่ยวเมื่อขอจุดเดียว */
+/* ---------- เวลา ---------- */
+const pad = n => String(n).padStart(2,"0");
+/* Open-Meteo คืนเวลาไทยแบบไม่มี offset ต้องเติมเอง */
+const parseBkk = s => new Date(s.length === 16 ? s + ":00+07:00" : s + "+07:00");
+/* มุมมองเวลาไทย เพื่ออ่าน getHours/getDay ได้ถูกไม่ว่าเครื่องอยู่โซนไหน */
+const inBkk = d => new Date(d.getTime() + (7*60 + d.getTimezoneOffset())*60000);
+
+let DATA = null;
+let activeId = lsGet("place") || null;
+let locating = false;
+
+/* ---------- เรียก API ---------- */
 const asList = v => Array.isArray(v) ? v : [v];
 
 async function getJson(url){
@@ -310,8 +447,7 @@ async function fetchForecast(){
   /* ค่าฝุ่นพังไม่ควรทำให้พยากรณ์ฝนพังตาม */
   const [wx, aq] = await Promise.all([ getJson(wxUrl), getJson(aqUrl).catch(() => null) ]);
   const wxList = asList(wx), aqList = aq ? asList(aq) : [];
-  if (wxList.length < list.length || !wxList[0]?.hourly)
-    throw new Error("ข้อมูลพยากรณ์ที่ได้กลับมาไม่ครบ");
+  if (wxList.length < list.length || !wxList[0]?.hourly) throw new Error(T().errPartial);
 
   return {
     generatedAt: new Date().toISOString(),
@@ -319,11 +455,11 @@ async function fetchForecast(){
     locations: list.map((loc, i) => {
       const w = wxList[i], a = aqList[i]?.current ?? null;
       return {
-        id: loc.id, name: loc.name, near: loc.near,
+        id: loc.id, th: loc.th, en: loc.en,
         grid: { lat: w.latitude, lon: w.longitude },
-        cur: { time:w.current.time, t:w.current.temperature_2m, rh:w.current.relative_humidity_2m,
-               app:w.current.apparent_temperature, p:w.current.precipitation,
-               wc:w.current.weather_code, wind:w.current.wind_speed_10m },
+        cur: { t:w.current.temperature_2m, rh:w.current.relative_humidity_2m,
+               app:w.current.apparent_temperature, wc:w.current.weather_code,
+               wind:w.current.wind_speed_10m },
         air: a ? { pm25:a.pm2_5, pm10:a.pm10, aqi:a.us_aqi } : null,
         hourly: { time:w.hourly.time, t:w.hourly.temperature_2m,
                   pop:w.hourly.precipitation_probability, mm:w.hourly.precipitation,
@@ -337,12 +473,12 @@ async function fetchForecast(){
   };
 }
 
-/* เก็บคำตอบล่าสุดไว้ 10 นาที กันยิงซ้ำตอนรีโหลดรัวๆ */
+/* แคชคำตอบ 10 นาที กันยิงซ้ำตอนรีโหลดรัวๆ (ภาษาไม่อยู่ในแคช สลับได้ฟรี) */
 const CACHE_MS = 10 * 60 * 1000;
 function cacheRead(){
   try {
     const box = JSON.parse(localStorage.getItem("fnb:wx") || "null");
-    if (!box || box.key !== locKey()) return null;  // รายการพื้นที่เปลี่ยน = แคชใช้ไม่ได้
+    if (!box || box.key !== locKey()) return null;
     return (Date.now() - box.at < CACHE_MS) ? box.data : null;
   } catch { return null; }
 }
@@ -350,32 +486,28 @@ function cacheWrite(data){
   try { localStorage.setItem("fnb:wx", JSON.stringify({ at: Date.now(), key: locKey(), data })); } catch {}
 }
 
-/* ---------- ดึงข้อมูล ---------- */
 async function load({ silent = false, force = false } = {}) {
-  if (!silent) $("stamp").textContent = "กำลังโหลด…";
+  if (!silent) $("stamp").textContent = T().loading;
   try {
     const cached = force ? null : cacheRead();
     DATA = cached ?? await fetchForecast();
     if (!cached) cacheWrite(DATA);
-    if (!DATA.locations?.length) throw new Error("ไม่มีข้อมูลพื้นที่");
+    if (!DATA.locations?.length) throw new Error(T().errNoPlaces);
     if (!DATA.locations.some(l => l.id === activeId)) activeId = DATA.locations[0].id;
     hideMsg();
     $("app").classList.remove("skel");
     renderPlaces();
     render();
   } catch (err) {
-    showMsg(DATA
-      ? "ดึงข้อมูลใหม่ไม่สำเร็จ กำลังแสดงข้อมูลรอบก่อน"
-      : "ตอนนี้ดึงพยากรณ์ไม่ได้ (" + err.message + ")");
+    showMsg(DATA ? T().errStale : T().errFirst(err.message));
   }
 }
 
 function showMsg(text){
   const m = $("msg");
-  m.hidden = false; m.className = "msg";
-  m.textContent = "";
+  m.hidden = false; m.className = "msg"; m.textContent = "";
   const s = document.createElement("span"); s.textContent = text;
-  const b = document.createElement("button"); b.type = "button"; b.textContent = "ลองใหม่";
+  const b = document.createElement("button"); b.type = "button"; b.textContent = T().retry;
   b.addEventListener("click", () => load({ force: true }));
   m.append(s, b);
 }
@@ -383,23 +515,22 @@ function hideMsg(){ $("msg").hidden = true; }
 
 /* ---------- ขอตำแหน่งจากเครื่อง ---------- */
 const PIN = "\u{1F4CD}";
-let locating = false;
 
 function geoMessage(err){
-  if (err && err.code === 1) return "ไม่ได้รับอนุญาตให้ใช้ตำแหน่ง — เปิดสิทธิ์ให้เว็บนี้ในการตั้งค่าเบราว์เซอร์แล้วลองใหม่";
-  if (err && err.code === 3) return "หาตำแหน่งนานเกินไป ลองใหม่อีกครั้ง หรือออกไปที่โล่งกว่านี้";
-  return "หาตำแหน่งไม่ได้ในตอนนี้ ลองใหม่อีกครั้ง";
+  if (err && err.code === 1) return T().geoDenied;
+  if (err && err.code === 3) return T().geoTimeout;
+  return T().geoOther;
 }
 
 function locate(){
   if (!GEO_OK || locating) return;
   locating = true;
   hideMsg();
-  $("stamp").textContent = "กำลังหาตำแหน่ง…";
+  $("stamp").textContent = T().locating;
   renderPlaces();
 
   /* ถ้าผู้ใช้ปัดกล่องขออนุญาตทิ้งโดยไม่ตอบ เบราว์เซอร์จะไม่เรียก callback ใดเลย
-     และ timeout ของ getCurrentPosition ก็ไม่นับช่วงรอสิทธิ์ ต้องกันค้างเอง */
+     และ timeout ของ getCurrentPosition ไม่นับช่วงรอสิทธิ์ ต้องกันค้างเอง */
   let settled = false;
   const done = fn => (...args) => {
     if (settled) return;
@@ -410,7 +541,7 @@ function locate(){
     if (settled) return;
     settled = true; locating = false;
     $("stamp").textContent = "";
-    showMsg("ยังไม่ได้คำตอบเรื่องสิทธิ์ตำแหน่ง — ถ้ามีกล่องขออนุญาตขึ้นมา ให้กดอนุญาตแล้วลองใหม่");
+    showMsg(T().geoNoAnswer);
     renderPlaces();
     if (DATA) render();
   }, 15000);
@@ -419,7 +550,7 @@ function locate(){
     done(pos => {
       herePos = { lat: pos.coords.latitude, lon: pos.coords.longitude };
       try { localStorage.setItem("fnb:here", JSON.stringify(herePos)); } catch {}
-      activeId = "here"; localStorage_set("place", "here");
+      activeId = "here"; lsSet("place", "here");
       load({ force: true });
     }),
     done(err => {
@@ -441,7 +572,7 @@ function renderPlaces(){
   if (GEO_OK && !herePos) {
     const b = document.createElement("button");
     b.className = "chip locate"; b.type = "button";
-    b.textContent = locating ? PIN + " กำลังหา…" : PIN + " ใช้ตำแหน่งปัจจุบัน";
+    b.textContent = PIN + " " + (locating ? T().searching : T().useLocation);
     b.disabled = locating;
     b.addEventListener("click", locate);
     el.appendChild(b);
@@ -451,10 +582,10 @@ function renderPlaces(){
     const b = document.createElement("button");
     b.className = "chip" + (L.id === "here" ? " locate" : "");
     b.type = "button";
-    b.textContent = (L.id === "here" ? PIN + " " : "") + L.name;
+    b.textContent = (L.id === "here" ? PIN + " " : "") + L[lang].name;
     b.setAttribute("aria-pressed", String(L.id === activeId));
     b.addEventListener("click", () => {
-      activeId = L.id; localStorage_set("place", L.id);
+      activeId = L.id; lsSet("place", L.id);
       [...el.querySelectorAll(".chip")].forEach(c => c.setAttribute("aria-pressed","false"));
       b.setAttribute("aria-pressed","true");
       render();
@@ -466,8 +597,8 @@ function renderPlaces(){
       r.className = "chip mini"; r.type = "button";
       r.textContent = locating ? "…" : "↻";
       r.disabled = locating;
-      r.title = "อัปเดตตำแหน่ง";
-      r.setAttribute("aria-label", "อัปเดตตำแหน่ง");
+      r.title = T().updateLocation;
+      r.setAttribute("aria-label", T().updateLocation);
       r.addEventListener("click", locate);
       el.appendChild(r);
     }
@@ -476,48 +607,62 @@ function renderPlaces(){
 
 /* ---------- ประโยคสรุป ---------- */
 function verdictText(L, i){
-  const H = L.hourly, n = H.time.length;
+  const H = L.hourly, n = H.time.length, S = T();
   const win = [];
   for (let k = i; k < Math.min(i + 14, n); k++)
     win.push({ k, pop: H.pop[k] ?? 0, mm: H.mm[k] ?? 0, t: inBkk(parseBkk(H.time[k])) });
-  if (!win.length) return "ข้อมูลรายชั่วโมงหมดช่วงแล้ว — ดูสรุป 7 วันด้านล่างแทน";
+  if (!win.length) return S.vNoData;
+
+  const hm = d => pad(d.getHours()) + ":00";
 
   if (win[0].pop >= 60 || win[0].mm >= 0.3) {
     let k = 0;
     while (k < win.length && (win[k].pop >= 50 || win[k].mm >= 0.3)) k++;
     const peak = win.slice(0, Math.max(k,1)).reduce((a,b) => b.mm > a.mm ? b : a);
-    if (k >= win.length) return `ฝนโปรยยาวทั้งวัน — หนักสุดราว <em>${pad(peak.t.getHours())}:00 น.</em>`;
-    return `ฝนตกอยู่ตอนนี้ น่าจะซาราว <em>${pad(win[k].t.getHours())}:00 น.</em> · หนักสุดช่วง ${pad(peak.t.getHours())}:00`;
+    if (k >= win.length) return S.vRainAllDay(hm(peak.t));
+    return S.vRainNow(hm(win[k].t), hm(peak.t));
   }
   const next = win.find(w => w.pop >= 60);
-  if (!next) return "ช่วง 12 ชั่วโมงนี้ไม่มีสัญญาณฝนชัด — <em>ไม่ต้องพกร่มก็ได้</em>";
+  if (!next) return S.vNoRain;
   const gap = next.k - i;
-  return `ตอนนี้แห้ง · ฝนน่าจะกลับมา <em>${pad(next.t.getHours())}:00 น.</em> (${gap <= 1 ? "อีกไม่ถึงชั่วโมง" : "อีกราว " + gap + " ชม."})`;
+  return S.vDryNow(hm(next.t), gap <= 1 ? S.gapSoon : S.gapHours(gap));
 }
 
 /* ---------- วาดหน้า ---------- */
+function applyStatic(){
+  const S = T();
+  document.documentElement.lang = lang;
+  document.title = S.title;
+  $("title").textContent = S.title;
+  document.querySelectorAll("[data-i18n]").forEach(el => {
+    const v = S[el.dataset.i18n];
+    if (typeof v === "string") el.textContent = v;
+  });
+  [...$("langsw").children].forEach(b =>
+    b.setAttribute("aria-pressed", String(b.dataset.lang === lang)));
+}
+
 function render(){
   if (!DATA) return;
+  const S = T();
   const L = DATA.locations.find(x => x.id === activeId) ?? DATA.locations[0];
   const H = L.hourly, D = L.daily;
 
-  // ชั่วโมงปัจจุบันอยู่ตรงไหนของชุดข้อมูล
   const t0 = parseBkk(H.time[0]).getTime();
   let i = Math.floor((Date.now() - t0) / 3600000);
   i = Math.max(0, Math.min(i, H.time.length - 1));
 
-  const gen = new Date(DATA.generatedAt);
-  $("stamp").textContent = "อัปเดต " + gen.toLocaleTimeString("th-TH",
-    { timeZone:"Asia/Bangkok", hour:"2-digit", minute:"2-digit" }) + " น.";
+  const clock = new Date(DATA.generatedAt).toLocaleTimeString("en-GB",
+    { timeZone:"Asia/Bangkok", hour:"2-digit", minute:"2-digit" });
+  $("stamp").textContent = S.updated(clock);
 
   const c = L.cur;
   $("verdict").innerHTML = verdictText(L, i);
   $("feels").textContent = c.app.toFixed(1);
-  $("temp").textContent  = c.t.toFixed(1);
-  $("wind").textContent  = Math.round(c.wind);
-  $("cond").textContent  = wmo(c.wc) + " · " + L.near;
+  $("actual").textContent = S.actual(c.t.toFixed(1), Math.round(c.wind));
+  $("cond").textContent = wmo(c.wc) + " · " + L[lang].near;
 
-  // แถบฝน
+  /* แถบฝน */
   const tl = $("tl"), ax = $("axis");
   tl.textContent = ""; ax.textContent = "";
   for (let k = 0; k < H.time.length; k++) {
@@ -530,44 +675,48 @@ function render(){
     bar.className = "bar";
     bar.style.height = Math.max(2, pop) + "%";
     const t = inBkk(parseBkk(H.time[k]));
-    col.title = `${pad(t.getHours())}:00 · โอกาสฝน ${pop}% · ${mm} มม. · ${wmo(H.wc[k])}`;
+    col.title = S.tip(pad(t.getHours()), pop, mm, wmo(H.wc[k]));
     col.appendChild(bar); tl.appendChild(col);
 
     const lab = document.createElement("div");
     lab.className = "t";
     const hr = t.getHours();
-    if (hr % 3 === 0) { lab.textContent = pad(hr); if (hr === 0) { lab.classList.add("day"); lab.title = "เที่ยงคืน"; } }
+    if (hr % 3 === 0) { lab.textContent = pad(hr); if (hr === 0) { lab.classList.add("day"); lab.title = S.midnight; } }
     ax.appendChild(lab);
   }
 
-  // การ์ดสี่ใบ
+  /* การ์ดสี่ใบ */
   if (L.air) {
     const pm = L.air.pm25;
+    const idx = pm < 15 ? 0 : pm < 25 ? 1 : pm < 37.5 ? 2 : 3;
     $("pm").innerHTML = pm.toFixed(1) + '<small>µg/m³</small>';
     const n = $("pmNote");
-    n.textContent = pm < 15 ? "ดีมาก" : pm < 25 ? "ปานกลาง" : pm < 37.5 ? "เริ่มมีผลต่อสุขภาพ" : "ควรใส่หน้ากาก";
-    n.className = "n " + (pm < 15 ? "good" : pm < 37.5 ? "warn" : "hot");
+    n.textContent = S.pmNotes[idx];
+    n.className = "n " + (idx === 0 ? "good" : idx < 3 ? "warn" : "hot");
   } else {
-    $("pm").textContent = "–"; $("pmNote").textContent = "ไม่มีข้อมูลฝุ่นตอนนี้"; $("pmNote").className = "n";
+    $("pm").textContent = "–";
+    $("pmNote").textContent = S.noAir; $("pmNote").className = "n";
   }
 
   const uv = D.uv[0] ?? 0;
+  const ui = uv < 3 ? 0 : uv < 6 ? 1 : uv < 8 ? 2 : uv < 11 ? 3 : 4;
   $("uv").textContent = uv.toFixed(1);
   const uvN = $("uvNote");
-  uvN.textContent = uv < 3 ? "ต่ำ" : uv < 6 ? "ปานกลาง" : uv < 8 ? "สูง — ทาครีมกันแดด" : uv < 11 ? "สูงมาก" : "อันตราย";
-  uvN.className = "n " + (uv < 6 ? "good" : uv < 8 ? "warn" : "hot");
+  uvN.textContent = S.uvNotes[ui];
+  uvN.className = "n " + (ui < 2 ? "good" : ui === 2 ? "warn" : "hot");
 
   $("rh").innerHTML = c.rh + '<small>%</small>';
-  $("rhNote").textContent = "ต่างจากอุณหภูมิจริง +" + (c.app - c.t).toFixed(1) + "°";
+  $("rhNote").textContent = S.rhNote((c.app - c.t).toFixed(1));
   $("rhNote").className = "n hot";
 
   const s = D.sum[0] ?? 0;
-  $("sum").innerHTML = s.toFixed(1) + '<small>มม.</small>';
+  const si = s < 10 ? 0 : s < 30 ? 1 : s < 60 ? 2 : 3;
+  $("sum").innerHTML = s.toFixed(1) + `<small>${S.mm}</small>`;
   const sN = $("sumNote");
-  sN.textContent = s < 10 ? "ไม่มีปัญหา" : s < 30 ? "ถนนเปียก รถอาจติด" : s < 60 ? "เสี่ยงน้ำขังจุดต่ำ" : "เสี่ยงน้ำท่วมขัง";
-  sN.className = "n " + (s < 10 ? "good" : s < 30 ? "warn" : "hot");
+  sN.textContent = S.sumNotes[si];
+  sN.className = "n " + (si === 0 ? "good" : si === 1 ? "warn" : "hot");
 
-  // 7 วัน
+  /* 7 วัน */
   const wk = $("week"); wk.textContent = "";
   const lo = Math.min(...D.mn), hi = Math.max(...D.mx), span = (hi - lo) || 1;
   D.time.forEach((iso, k) => {
@@ -575,26 +724,34 @@ function render(){
     const row = document.createElement("div");
     row.className = "row";
     row.innerHTML =
-      `<div class="d"><b>${k === 0 ? "วันนี้" : DAY_TH[day.getDay()]}</b><s>${day.getDate()}/${day.getMonth()+1}</s></div>` +
+      `<div class="d"><b>${k === 0 ? S.today : S.days[day.getDay()]}</b><s>${day.getDate()}/${day.getMonth()+1}</s></div>` +
       `<div class="cond">${wmo(D.wc[k])}</div>` +
       `<div class="temps"><div class="trange"><i style="left:${(D.mn[k]-lo)/span*100}%;right:${(hi-D.mx[k])/span*100}%"></i></div>` +
         `<div class="tnum"><span>${Math.round(D.mn[k])}°</span><span>${Math.round(D.mx[k])}°</span></div></div>` +
-      `<div class="rain">${(D.sum[k] ?? 0).toFixed(1)}<i> มม.</i><br><i>${D.pop[k] ?? 0}%</i></div>`;
+      `<div class="rain">${(D.sum[k] ?? 0).toFixed(1)}<i> ${S.mm}</i><br><i>${D.pop[k] ?? 0}%</i></div>`;
     wk.appendChild(row);
   });
 
-  $("foot").innerHTML =
-    `ข้อมูลจาก <b>${DATA.source}</b> · ตำแหน่งกริดที่ใช้จริง ${L.grid.lat.toFixed(3)}, ${L.grid.lon.toFixed(3)} ` +
-    `(ความละเอียดราว 11 กม. ต่อช่อง) · หน้านี้ดึงข้อมูลใหม่ทุก 10 นาที` +
-    (L.id === "here"
-      ? ` · <b>พิกัดของคุณเก็บอยู่ในเบราว์เซอร์เครื่องนี้เท่านั้น</b> ใช้เพื่อถามพยากรณ์จาก Open-Meteo และไม่ได้ส่งไปที่อื่น`
-      : ``);
+  $("foot").innerHTML = S.foot(DATA.source, L.grid.lat.toFixed(3), L.grid.lon.toFixed(3))
+                      + (L.id === "here" ? S.footGeo : "");
 }
 
+/* ---------- ปุ่มสลับภาษา ---------- */
+$("langsw").addEventListener("click", e => {
+  const b = e.target.closest("button[data-lang]");
+  if (!b || b.dataset.lang === lang) return;
+  lang = b.dataset.lang;
+  lsSet("lang", lang);
+  applyStatic();
+  renderPlaces();
+  if (DATA) render(); else $("stamp").textContent = T().loading;
+});
+
 /* ---------- เริ่มทำงาน ---------- */
-renderPlaces();   // ให้ปุ่มตำแหน่งขึ้นทันที ไม่ต้องรอข้อมูลมาก่อน
+applyStatic();
+renderPlaces();
 load();
-timer = setInterval(() => load({ silent: true, force: true }), CACHE_MS);
+setInterval(() => load({ silent: true, force: true }), CACHE_MS);
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") load({ silent: true });
 });
