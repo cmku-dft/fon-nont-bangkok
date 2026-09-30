@@ -222,7 +222,7 @@
         </div>
         <div class="nowrow">
           <div>
-            <span class="feels-lab" data-i18n="feelsLike"></span>
+            <span class="feels-lab" id="feelsLab" data-i18n="feelsLike"></span>
             <span class="feels"><span class="big" id="feels">–</span><span class="unit">°</span></span>
           </div>
           <div class="actual">
@@ -293,7 +293,7 @@
 "use strict";
 
 /* ใส่ไว้ให้ตรวจได้ว่าไฟล์ที่อยู่บนเว็บเป็นรุ่นไหน — เปิด Console แล้วพิมพ์ BUILD */
-const BUILD = "2026-09-28f";
+const BUILD = "2026-09-30a";
 
 /* =====================================================================
    ข้อความสองภาษา · Bilingual strings
@@ -307,6 +307,8 @@ const I18N = {
     updated: t => "อัปเดต " + t + " น.",
     retry: "ลองใหม่",
     feelsLike: "รู้สึกเหมือน",
+    feelsLikeSun: "รู้สึกเหมือน · กลางแดด",
+    shadeNote: t => `ในร่มราว ${t}°`,
     actual: (t, w) => `${t}°C · ลม ${w} กม./ชม.`,
     next30: "ฝน 30 ชั่วโมงข้างหน้า",
     tlHint: "แท่ง = โอกาสตก · สี = ความแรง",
@@ -370,6 +372,8 @@ const I18N = {
     updated: t => "Updated " + t,
     retry: "Retry",
     feelsLike: "Feels like",
+    feelsLikeSun: "Feels like · in the sun",
+    shadeNote: t => `about ${t}° in the shade`,
     actual: (t, w) => `${t}°C · wind ${w} km/h`,
     next30: "Rain, next 30 hours",
     tlHint: "Bar = chance · colour = intensity",
@@ -520,7 +524,7 @@ async function fetchForecast(){
 
   const wxUrl = WX_API + "?" + new URLSearchParams({
     latitude: lat, longitude: lon,
-    current: "temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m",
+    current: "temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,is_day",
     hourly: "temperature_2m,precipitation_probability,precipitation,weather_code",
     daily: "weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,uv_index_max",
     timezone: "Asia/Bangkok", forecast_days: "7", forecast_hours: "30",
@@ -546,7 +550,8 @@ async function fetchForecast(){
         grid: { lat: w.latitude, lon: w.longitude },
         cur: { t:w.current.temperature_2m, rh:w.current.relative_humidity_2m,
                app:w.current.apparent_temperature, p:w.current.precipitation,
-               wc:w.current.weather_code, wind:w.current.wind_speed_10m },
+               wc:w.current.weather_code, wind:w.current.wind_speed_10m,
+               day: w.current.is_day === 1 || w.current.is_day === true },
         pt: { lat: loc.lat, lon: loc.lon },
         air: a ? { pm25:a.pm2_5, pm10:a.pm10, aqi:a.us_aqi } : null,
         hourly: { time:w.hourly.time, t:w.hourly.temperature_2m,
@@ -566,7 +571,7 @@ async function fetchForecast(){
    SCHEMA ต้องบวกเลขทุกครั้งที่เปลี่ยนรูปร่างของข้อมูลใน fetchForecast()
    ไม่งั้นเบราว์เซอร์ที่เคยเข้ามาแล้วจะเอาข้อมูลรูปแบบเก่ามาป้อนโค้ดใหม่
    แล้วพังแบบเงียบๆ อย่างที่เคยเจอมา */
-const SCHEMA = 3;
+const SCHEMA = 4;
 const CACHE_MS = 10 * 60 * 1000;
 const cacheKey = () => `v${SCHEMA}|${locKey()}`;
 
@@ -716,6 +721,14 @@ const DAMP_MM = 0.15;   // ต่ำกว่านี้ถือว่าแ�
 /* รหัส WMO ที่หมายถึงมีน้ำฟ้าตกอยู่ */
 const isWetCode = c => (c >= 51 && c <= 67) || (c >= 80 && c <= 82) || c >= 95;
 
+/* Steadman Apparent Temperature ฉบับในร่ม (สำนักอุตุฯ ออสเตรเลียใช้)
+   AT = Ta + 0.33e − 0.70ws − 4.00 ; e = ความดันไอน้ำ (hPa), ws = ลม (ม./วินาที)
+   ต่างจาก apparent_temperature ของ Open-Meteo ตรงที่ไม่รวมรังสีดวงอาทิตย์ */
+function shadeAT(tC, rh, windKmh){
+  const e = (rh / 100) * 6.105 * Math.exp(17.27 * tC / (237.7 + tC));
+  return tC + 0.33 * e - 0.70 * (windKmh / 3.6) - 4.00;
+}
+
 function verdictText(L, i, radarWet){
   const H = L.hourly, n = H.time.length, S = T();
   const win = [];
@@ -806,6 +819,9 @@ function render(){
   const c = L.cur;
   paintVerdict();
   refreshRadarWet(L);
+  /* ค่าของ Open-Meteo รวมรังสีดวงอาทิตย์ กลางวันจึงเป็นค่า "กลางแดด"
+     กลางคืนส่วนนั้นเป็นศูนย์ ป้ายจึงกลับไปเป็นคำกลางๆ */
+  $("feelsLab").textContent = c.day ? S.feelsLikeSun : S.feelsLike;
   $("feels").textContent = c.app.toFixed(1);
   $("actual").textContent = S.actual(c.t.toFixed(1), Math.round(c.wind));
   $("cond").textContent = wmo(c.wc) + " · " + L[lang].near;
@@ -854,8 +870,8 @@ function render(){
   uvN.className = "n " + (ui < 2 ? "good" : ui === 2 ? "warn" : "hot");
 
   $("rh").innerHTML = c.rh + '<small>%</small>';
-  $("rhNote").textContent = S.rhNote((c.app - c.t).toFixed(1));
-  $("rhNote").className = "n hot";
+  $("rhNote").textContent = S.shadeNote(shadeAT(c.t, c.rh, c.wind).toFixed(1));
+  $("rhNote").className = "n";
 
   const s = D.sum[0] ?? 0;
   const si = s < 10 ? 0 : s < 30 ? 1 : s < 60 ? 2 : 3;
